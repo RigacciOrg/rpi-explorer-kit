@@ -1,0 +1,51 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Connect to a running gpsd instance and get current GPS position:
+
+    timestamp latitude longitude altitude
+
+Does not block: return None values after a timeout.
+"""
+
+import time
+import gps
+import sys
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2018 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.1.0"
+
+try:
+    gpsd_session = gps.gps("localhost", "2947")
+    gpsd_session.stream(gps.WATCH_ENABLE | gps.WATCH_NEWSTYLE)
+except:
+    print "Cannot open gpsd connection"
+    sys.exit(1)
+
+timestamp = lat = lon = alt = None
+start_time = time.time()
+while (time.time() - start_time) < 2.5:
+    try:
+        if gpsd_session.waiting(0.2):
+            report = gpsd_session.next()
+            if report['class'] == 'TPV':
+                if hasattr(report, 'mode'):
+                    if report.mode == gps.MODE_2D or report.mode == gps.MODE_3D:
+                        if hasattr(report, 'time'):
+                            timestamp = report.time
+                        else:
+                            timestamp = None
+                        lat = '%0.6f' % float(report.lat)
+                        lon = '%0.6f' % float(report.lon)
+                        if hasattr(report, 'alt'):
+                            alt = '%0.2f' % float(report.alt)
+                        break
+    except:
+        print "Error reading GPS data"
+        sys.exit(1)
+
+print("%s %s %s %s" % (timestamp, lat, lon, alt))
+sys.exit(0)

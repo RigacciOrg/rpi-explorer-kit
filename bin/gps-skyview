@@ -1,0 +1,64 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Read gpspipe output, print one SKY and one TPV sentence, then exit.
+
+Does not block: return two empty sentences after a timeout.
+"""
+
+import json
+import signal
+import subprocess
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2018 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.1.0"
+
+class Timeout():
+    """Timeout class using ALARM signal."""
+    class Timeout(Exception):
+       pass
+ 
+    def __init__(self, sec):
+        self.sec = sec
+ 
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.raise_timeout)
+        signal.alarm(self.sec)
+ 
+    def __exit__(self, *args):
+        signal.alarm(0)    # disable alarm
+ 
+    def raise_timeout(self, *args):
+        raise Timeout.Timeout()
+
+
+cmd = ['gpspipe', '-w']
+SKY = None
+TPV = None
+try:
+    with Timeout(10):
+        p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+        for line in iter(p.stdout.readline, b''):
+            try:
+                sentence = json.loads(line.decode('utf-8').strip())
+                if 'class' in sentence and sentence['class'] == 'SKY':
+                    SKY = sentence
+                if 'class' in sentence and sentence['class'] == 'TPV':
+                    TPV = sentence
+                if SKY is not None and TPV is not None:
+                    break
+            except:
+                pass  # Probably JSON decode error.
+        p.stdout.close()
+        p.wait()
+except Timeout.Timeout:
+    if SKY is None:
+        SKY = {}
+    if TPV is None:
+        TPV = {}
+
+print(json.dumps(SKY))
+print(json.dumps(TPV))

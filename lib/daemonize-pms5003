@@ -1,0 +1,9 @@
+#!/bin/bash
+
+RUNNING_PS="$(ps aux | grep 'python .*/pms5003$' | grep -v 'grep' | wc -l)"
+if [ "$RUNNING_PS" -ne "0" ]; then
+    echo "Python script pms5003 already running."
+    exit 1
+fi
+
+/usr/local/lib/airpi/pms5003 < /dev/null > /dev/null 2>&1 &

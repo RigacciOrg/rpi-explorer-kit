@@ -1,0 +1,120 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Read the output of "ntpq -pn" command and produce an nice HTML list.
+"""
+
+import subprocess
+import sys
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2018 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.1.0"
+
+#--------------------------------------------------------------------------
+# Convert the NTP "reach" value in percentual.
+# The reachability of a source is represented by the octal value of an
+# 8-bit left shift field; each bit is 1 for success, 0 for failure.
+#--------------------------------------------------------------------------
+def reach_percentual(reach):
+    try:
+        binary = bin(int(reach, 8))[2:]
+        percent = int((binary.count('1') / 8.0) * 100)
+        ret = u'%d%%' % (percent,)
+    except:
+        ret = u'Error'
+    return ret
+
+#--------------------------------------------------------------------------
+# Tally codes: is the remote server used to synchronize the clock?
+#--------------------------------------------------------------------------
+tally_codes = {
+    ' ': u'Not valid',
+    'x': u'Discarded by intersection algorithm',
+    '.': u'Discarded by overflow',
+    '-': u'Discarded by cluster algorithm',
+    '+': u'Used in combine algorithm',
+    '#': u'Good alternative',
+    '*': u'Current system peer',
+    'o': u'Current system PPS peer'
+}
+
+#--------------------------------------------------------------------------
+# Call ntpq and parse output.
+#--------------------------------------------------------------------------
+error_msg = None
+cmd = ["ntpq", "-p", "-n"]
+try:
+    subproc = subprocess.Popen(cmd, stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, stderr = subproc.communicate()
+    retcode = subproc.returncode
+    output = output.splitlines()
+except Exception as e:
+    error_msg = u"Executing '%s': %s" % (' '.join(cmd), str(e))
+    retcode = 0
+    output = []
+    stderr = b''
+if retcode != 0:
+    error_msg = u"%s exit code: %d" % (cmd[0], retcode)
+if len(stderr) > 0:
+    if error_msg:
+        error_msg = u"%s - %s" % (error_msg, stderr)
+    else:
+        error_msg = u"%s" % (stderr,)
+    output = []
+
+# Count ho many source per tally type, to limit display.
+tally_count = {}
+for k in tally_codes.keys():
+    tally_count[k] = 0
+max_per_tally = 3
+
+time_sources = []
+for bstr in output:
+    line = bstr.decode('utf-8')
+    if len(line) < 1:
+        continue
+    tally = line[0]
+    fields = line[1:].split()
+    if len(fields) != 10:
+        continue
+    remote  = fields[0]
+    refid   = fields[1]
+    stratum = fields[2]
+    reach   = fields[6]
+    offset  = fields[8]
+    if remote.startswith(u'127.127.2'):
+        # Local sources refid == '.GPS.' or refid == '.PPS.'
+        remote = refid[1:][:-1]
+    elif tally in u'x-+#*o': 
+        # Other sources of interesting type.
+        tally_count[tally] = tally_count[tally] + 1
+        if tally_count[tally] > max_per_tally:
+            continue
+    else:
+        # Remaining sources are ignored.
+        continue
+
+    time_sources.append({
+        'tally': tally,
+        'remote': remote,
+        'stratum': int(stratum),
+        'reach': reach_percentual(reach),
+        'offset': float(offset)
+    })
+
+if error_msg:
+    print(u'<div class="alert alert-danger" role="alert"><strong>Error:</strong> %s</div>' % (error_msg,))
+    sys.exit(1)
+
+template = u'<li class="list-group-item %s"><strong>%s (stratum %d)</strong><br>Reach: %s, Offset: %.2f ms<br>%s</li>'
+for s in time_sources:
+    if s['tally'] in u'+#*o':
+        item_class = u'list-group-item-success'
+    else:
+        item_class = u'list-group-item-warning'
+    if (s['remote'] == u'GPS' or s['remote'] == u'PPS') and not s['tally'] in u'x+#*o':
+        item_class = u'list-group-item-danger'
+    print(template % (item_class, s['remote'], s['stratum'], s['reach'], s['offset'], tally_codes[s['tally']]))

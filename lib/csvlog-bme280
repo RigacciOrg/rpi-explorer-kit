@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Get data from BME280 sensor and GPS, then append to a CSV file.
+
+  * BME280 sensor is read via /usr/local/lib/airpi/bme280-snmp.
+  * GPS position is get via /usr/local/bin/gps-position.
+  * CSV file is written to /CSV/tph_YYYYMMDD.csv.
+"""
+
+import datetime
+import os
+import subprocess
+
+__author__ = "Niccolo Rigacci"
+__copyright__ = "Copyright 2018 Niccolo Rigacci <niccolo@rigacci.org>"
+__license__ = "GPLv3-or-later"
+__email__ = "niccolo@rigacci.org"
+__version__ = "0.1.0"
+
+CSV_LOG = '/CSV/tph_%s.csv' % (datetime.datetime.now().strftime('%Y%m%d'),)
+if not os.path.exists(CSV_LOG):
+    open(CSV_LOG, 'a').close()
+utc_timestamp = datetime.datetime.utcnow()
+utc_str = utc_timestamp.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+try:
+    # Get sensors data.
+    temperature, pressure, humidity = '', '', ''
+    output = subprocess.check_output(['/usr/local/lib/airpi/bme280-snmp']).splitlines()
+    if output[0].startswith('Temperature'):
+        temperature = '%.3f' % (float(output[0].split(':')[1]),)
+    if output[1].startswith('Pressure'):
+        pressure = '%.3f' % (float(output[1].split(':')[1]),)
+    if output[2].startswith('Humidity'):
+        humidity = '%.3f' % (float(output[2].split(':')[1]),)
+except:
+    temperature, pressure, humidity = '', '', ''
+
+try:
+    # Get GPS position.
+    lat, lon, alt = '', '', ''
+    output = subprocess.check_output(['/usr/local/bin/gps-position']).splitlines()
+    gps_str, lat, lon, alt = output[0].split()
+    gps_timestamp = datetime.datetime.strptime(gps_str, '%Y-%m-%dT%H:%M:%S.%fZ')
+    # Check if sensors data and GPS position are within 10 seconds.
+    delta_t = gps_timestamp - utc_timestamp
+    if abs(delta_t.total_seconds()) < 10:
+        lat = '%0.6f' % float(lat)
+        lon = '%0.6f' % float(lon)
+        alt = '' if alt == 'None' else '%0.2f' % float(alt)
+except:
+    lat, lon, alt = '', '', ''
+
+csv_line = "%s,%s,%s,%s,%s,%s,%s\n" % (utc_str, temperature, pressure, humidity, lat, lon, alt)
+with open(CSV_LOG, 'a') as l:
+    l.write(csv_line)

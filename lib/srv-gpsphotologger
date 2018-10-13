@@ -1,0 +1,43 @@
+#!/bin/bash
+
+# Service status is written to file, to survive reboot.
+DEFAULT='/etc/default/srv-gpsphotologger'
+if [ ! -f "$DEFAULT" ] || ! grep -q '^ENABLED=' "$DEFAULT"; then
+    echo -e '\nENABLED=0' | sudo tee --append "$DEFAULT" > /dev/null
+fi
+
+case "$1" in
+    start)
+        grep -q '^ENABLED=1\b' "$DEFAULT" || sudo sed -i -- 's/^ENABLED=.*/ENABLED=1/' "$DEFAULT"
+        PHOTO_INTERVAL=15
+        PHOTO_DISTANCE=10
+        PHOTO_REQUIRE_FIX=True
+        if [ -r "$DEFAULT" ]; then
+            . "$DEFAULT"
+        fi
+        sudo gpsphotologger -f $PHOTO_REQUIRE_FIX -i $PHOTO_INTERVAL -d $PHOTO_DISTANCE &
+        ;;
+    stop)
+        grep -q '^ENABLED=0\b' "$DEFAULT" || sudo sed -i -- 's/^ENABLED=.*/ENABLED=0/' "$DEFAULT"
+        sudo killall --quiet gpsphotologger
+        ;;
+    status)
+        PID="$(cat /var/run/gpsphotologger.pid 2> /dev/null)"
+        if [ -z "$PID" ]; then
+            echo "stopped"
+            exit 0
+        else
+            if (cat /proc/$PID/cmdline | grep -q '/gpsphotologger$'); then
+                echo "started"
+                exit 1
+            else
+                echo "unknown"
+                exit 2
+            fi
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status}"
+        ;;
+esac
+exit 0

@@ -1,0 +1,26 @@
+#!/bin/bash
+
+case "$1" in
+    start)
+        sudo mv /etc/cron.d/bme280.disabled /etc/cron.d/bme280
+        ;;
+    stop)
+        sudo mv /etc/cron.d/bme280 /etc/cron.d/bme280.disabled
+        ;;
+    status)
+        if [ -f /etc/cron.d/bme280.disabled ]; then
+            echo "stopped"
+            exit 0
+        elif [ -f /etc/cron.d/bme280 ]; then
+            echo "started"
+            exit 1
+        else
+            echo "unknown"
+            exit 2
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status}"
+        ;;
+esac
+exit 0

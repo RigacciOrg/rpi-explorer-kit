@@ -1,0 +1,92 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+Capture a photograph via a running raspistill instance and
+save it into the web server DocumentRoot. Creates also a
+thumbnail with a superimposed timestamp.
+
+Copyright (C) 2018 Niccolo Rigacci <niccolo@rigacci.org>
+
+This program is free software: you can redistribute it and/or
+modify it under the terms of the GNU General Public License as
+published by the Free Software Foundation, either version 3 of
+the License, or (at your option) any later version.
+
+Requires Debian packages: python-imaging fonts-dejavu-core
+"""
+
+import os, time, signal, shutil, subprocess, sys
+import PIL, PIL.ImageDraw, PIL.Image, PIL.ImageFont
+
+CAPTURE_SLEEP = 0.7
+TMP_STILLIMAGE = '/dev/shm/stillimage.jpg'
+DST_IMG = '/var/www/html/tmp/photo.jpg'
+DST_TBN = '/var/www/html/tmp/photo_tbn.jpg'
+
+# Remove the old photograph and thumbnail, if any.
+try:
+    if os.path.exists(DST_IMG):
+        os.remove(DST_IMG)
+    if os.path.exists(DST_TBN):
+        os.remove(DST_TBN)
+except Exception as e:
+    print("Cannot remove existing photograph '%s': %s" % (DST_IMG, str(e)))
+    sys.exit(1)
+
+# Find the PID of the running raspistill process.
+try:
+    process_name = 'raspistill'
+    pidof = map(int, subprocess.check_output(['pidof', process_name]).split())
+    if len(pidof) > 1:
+        print("Found multiple instances of '%s', PID: %s" % (process_name, pidof))
+    raspistill_pid = pidof[0]
+except Exception as e:
+    raspistill_pid = None
+    print("Cannot find the PID of process '%s': %s" % (process_name, str(e)))
+    sys.exit(1)
+if not raspistill_pid:
+    print("Process '%s' is not running" % (process_name,))
+    sys.exit(1)
+
+# Send a SIGUSR1 signal to raspistill, to capture a new photograph.
+snapshot_time = time.time()
+try:
+    os.kill(raspistill_pid, signal.SIGUSR1)
+except Exception as e:
+    print("Error sending SIGUSR1 to raspistill: %s" % (str(e),))
+# Wait for the image to be fully saved (adjust on your system!).
+time.sleep(CAPTURE_SLEEP)
+if not os.path.exists(TMP_STILLIMAGE):
+    print("File '%s' does not exists after sending SIGUSR1 to PID %d" % (TMP_STILLIMAGE, raspistill_pid))
+    sys.exit(2)
+if os.path.getmtime(TMP_STILLIMAGE) < snapshot_time:
+    print("Found file '%s', but it is stale" % (TMP_STILLIMAGE,))
+    sys.exit(2)
+
+# Copy the photograph to destination.
+try:
+    shutil.copyfile(TMP_STILLIMAGE, DST_IMG)
+except Exception as e:
+    print("Error saving photograph to '%s': %s" % (DST_IMG, str(e),))
+    sys.exit(3)
+# Make a thumbnail with timestamp.
+try:
+    width = 720
+    timestamp_str = time.strftime('%Y-%m-%d %H:%M:%S')
+    font = PIL.ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 32)
+    src_img = PIL.Image.open(DST_IMG).convert('RGBA')
+    ratio = (width / float(src_img.size[0]))
+    height = int((float(src_img.size[1]) * float(ratio)))
+    thumbnail = src_img.resize((width, height), PIL.Image.ANTIALIAS)
+    txt_img = PIL.Image.new('RGBA', (width, height), (255, 255, 255, 0))
+    draw = PIL.ImageDraw.Draw(txt_img)
+    txt_w, txt_h = draw.textsize(timestamp_str, font)
+    txt_margin = 6
+    x = width - txt_w - txt_margin
+    y = height - txt_h - txt_margin
+    draw.rectangle([(0, y), (width, height)], fill=(64, 64, 64, 128))
+    draw.text((txt_margin, y), timestamp_str, font=font)
+    PIL.Image.alpha_composite(thumbnail, txt_img).save(DST_TBN)
+except Exception as e:
+    print("Error saving thumbnail to '%s': %s" % (DST_TBN, str(e),))
+    sys.exit(3)

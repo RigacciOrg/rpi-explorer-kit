@@ -1,0 +1,2 @@
+#!/bin/bash
+(sleep 6; /sbin/reboot) < /dev/null > /dev/null 2>&1 &

@@ -1,0 +1,2 @@
+#!/bin/sh
+/usr/bin/raspistill --output /dev/shm/stillimage.jpg --signal --timeout 0 < /dev/null > /dev/null 2>&1 &

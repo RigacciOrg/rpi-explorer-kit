@@ -1,0 +1,47 @@
+#!/bin/bash
+
+# Service status is written to file, to survive reboot.
+DEFAULT='/etc/default/srv-gpxlogger'
+if [ ! -f "$DEFAULT" ] || ! grep -q '^ENABLED=' "$DEFAULT"; then
+    echo -e '\nENABLED=0' | sudo tee --append "$DEFAULT" > /dev/null
+fi
+
+case "$1" in
+    start)
+        grep -q '^ENABLED=1\b' "$DEFAULT" || sudo sed -i -- 's/^ENABLED=.*/ENABLED=1/' "$DEFAULT"
+        if [ "$(srv-gpxlogger status)" = "stopped" ]; then
+            TRK_SPLIT_TIMEOUT='30'
+            MINMOVE='15.0'
+            GPX_FILE='/GPX/trk_%Y%m%d%H%M%S.gpx'
+            if [ -r "$DEFAULT" ]; then
+                . "$DEFAULT"
+            fi
+            sudo /usr/bin/gpxlogger -d -i "$TRK_SPLIT_TIMEOUT" -m "$MINMOVE" -f "$GPX_FILE"
+        else
+            echo "gpxlogger already running"
+        fi
+        ;;
+    stop)
+        grep -q '^ENABLED=0\b' "$DEFAULT" || sudo sed -i -- 's/^ENABLED=.*/ENABLED=0/' "$DEFAULT"
+        sudo killall --quiet gpxlogger
+        ;;
+    status)
+        PID="$(ps uax | grep '/usr/bin/gpxlogger' | grep -v grep | head -n 1 | awk '{print $2}')"
+        if [ -z "$PID" ]; then
+            echo "stopped"
+            exit 0
+        else
+            if (cat /proc/$PID/cmdline | grep -q '^/usr/bin/gpxlogger\b'); then
+                echo "started"
+                exit 1
+            else
+                echo "unknown"
+                exit 2
+            fi
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status}"
+        ;;
+esac
+exit 0

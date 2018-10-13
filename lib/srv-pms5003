@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Logging of PMS5003 data is performed by a running instance of
+# the pms5003 Python script plus a cronjob to store data.
+
+case "$1" in
+    start)
+        # Start the process which read the sensors and write status file.
+        sudo /usr/local/lib/rpi-explorer-kit/daemonize-pms5003
+        # Enable the cronjob to log data.
+        sudo mv /etc/cron.d/pms5003.disabled /etc/cron.d/pms5003
+        ;;
+    stop)
+        sudo mv /etc/cron.d/pms5003 /etc/cron.d/pms5003.disabled
+        # Stop the running pms5003 Python script.
+        PID="$(ps uax | grep 'python .*/pms5003$' | grep -v grep | head -n 1 | awk '{print $2}')"
+        if [ -n "$PID" ]; then
+            sudo kill "$PID"
+        fi
+        ;;
+    status)
+        if [ -f /etc/cron.d/pms5003.disabled ]; then
+            echo "stopped"
+            exit 0
+        elif [ -f /etc/cron.d/pms5003 ]; then
+            echo "started"
+            exit 1
+        else
+            echo "unknown"
+            exit 2
+        fi
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|status}"
+        ;;
+esac
+exit 0
