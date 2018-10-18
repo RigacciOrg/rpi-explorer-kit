@@ -6,7 +6,7 @@ skyview2svg -- Create an SVG image of GPS satellites sky view.
 Read from file or stdin the JSON data produced by gpsd,
 example usage:
 
-    gpspipe -w -n 30 | skyview2svg
+    gpspipe -w | skyview2svg > skyview.svg
 
 For GPSD JSON format see: http://www.catb.org/gpsd/gpsd_json.html
 """
@@ -21,9 +21,9 @@ import sys
 
 __author__ = "Niccolo Rigacci"
 __copyright__ = "Copyright 2018 Niccolo Rigacci <niccolo@rigacci.org>"
-__license__ = "GPLv3-or-later"
+__license__ = "BSD-2-clause"
 __email__ = "niccolo@rigacci.org"
-__version__ = "0.2.0"
+__version__ = "0.2.1"
 
 
 # ------------------------------------------------------------------------
@@ -75,16 +75,18 @@ try:
             if 'class' in SENTENCE and SENTENCE['class'] == 'TPV':
                 TPV = SENTENCE
             if SKY is not None and TPV is not None:
+                sys.stdin.close()
                 break
 except (IOError, ValueError):
     # Assume empty data and write msg to stderr.
     EXIT_CODE = 100
-    if SKY is None:
-        SKY = {}
-    if TPV is None:
-        TPV = {}
     sys.stderr.write("Error reading JSON data from file or stdin."
                      " Creating an empty or partial skyview image.\n")
+
+if SKY is None:
+    SKY = {}
+if TPV is None:
+    TPV = {}
 
 # ------------------------------------------------------------------------
 # Colors for the SVG styles.
@@ -114,8 +116,8 @@ BAR_UNUSED_STROKE_COLOR = BACKGROUND_COLOR
 # ------------------------------------------------------------------------
 # Size and position of elements.
 # ------------------------------------------------------------------------
-IMG_WIDTH = 1000
-IMG_HEIGHT = 1500
+IMG_WIDTH = 528
+IMG_HEIGHT = 800
 STROKE_WIDTH = int(IMG_WIDTH * 0.007)
 
 # Scale graph bars to accomodate at least MIN_SAT values.
