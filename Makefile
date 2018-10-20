@@ -3,7 +3,7 @@ PREFIX = $(DESTDIR)/usr/local
 BINDIR = $(PREFIX)/bin
 LIBDIR = $(PREFIX)/lib/$(TARGET)
 
-BIN_FILES := $(shell cd bin; echo gps-* ntpq2html skyview2svg)
+BIN_FILES := $(shell cd bin; get-noaa-declination echo gps-* ntpq2html skyview2svg)
 LIB_FILES := $(shell cd lib; echo csvlog-* daemonize-* srv-* take-photo)
 
 .PHONY: all
