@@ -1,0 +1,20 @@
+#!/bin/sh
+#
+# Get magnetic declination at current location.
+#
+# Call the "gps-position" script to get actual GPS coordinates,
+# then call the "get-noaa-declination" script to get magnetic
+# declination from NOAA web service.
+
+PREFIX='/usr/local/bin'
+
+GPS="$($PREFIX/gps-position)"
+LAT="$(echo "$GPS" | awk '{print $2}')"
+LON="$(echo "$GPS" | awk '{print $3}')"
+if [ "$LAT" != "None" -a "$LON" != "None" ]; then
+    "$PREFIX/get-noaa-declination" "$LAT" "$LON"
+    exit 0
+else
+    echo '{}'
+    exit 1
+fi

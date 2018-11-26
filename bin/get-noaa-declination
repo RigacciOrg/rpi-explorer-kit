@@ -7,7 +7,6 @@ import os.path
 import logging
 import json
 from xml.etree import ElementTree as ET
-import requests
 
 __author__ = "Niccolo Rigacci"
 __copyright__ = "Copyright 2018 Niccolo Rigacci <niccolo@rigacci.org>"
@@ -40,6 +39,10 @@ RESULT = {
     'longitude': None,
     'declination': None
 }
+
+# Import moved here because it is very slow: execute only if needed.
+# See https://github.com/requests/requests/issues/4278
+import requests
 try:
     r = requests.get(URL, params=req_params)
     if r.status_code == 200:
