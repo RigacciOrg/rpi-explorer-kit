@@ -1,5 +1,6 @@
 #!/bin/bash
 
+THIS_SCRIPT="$0"
 # Service status is written to file, to survive reboot.
 DEFAULT='/etc/default/srv-gpxlogger'
 if [ ! -f "$DEFAULT" ] || ! grep -q '^ENABLED=' "$DEFAULT"; then
@@ -9,7 +10,7 @@ fi
 case "$1" in
     start)
         grep -q '^ENABLED=1\b' "$DEFAULT" || sudo sed -i -- 's/^ENABLED=.*/ENABLED=1/' "$DEFAULT"
-        if [ "$(srv-gpxlogger status)" = "stopped" ]; then
+        if [ "$("$THIS_SCRIPT" status)" = "stopped" ]; then
             TRK_SPLIT_TIMEOUT='30'
             MINMOVE='15.0'
             GPX_FILE='/GPX/trk_%Y%m%d%H%M%S.gpx'
